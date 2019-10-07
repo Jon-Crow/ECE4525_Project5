@@ -60,7 +60,10 @@ var sketchProc = function(processingInstance)
 		}
 	};
 	
-	var imgs = [];
+	var imgs         = [];
+	var imgTileSheet = 0;
+	
+	var tiles = [];
 	var cannonSounds = [];
 	
 	var getSprites = function(startX, startY, endX, endY)
@@ -73,6 +76,16 @@ var sketchProc = function(processingInstance)
 	}
 	var initImages = function()
 	{
+		imgs[imgTileSheet] = loadImage("img/tile_sheet.png");
+	};
+	
+	var initTiles = function()
+	{
+		background(0,255,0,0);
+		image(imgs[imgTileSheet], 0, 0);
+		for(var x = 0; x < 16; x++)
+			for(var y = 0; y < 6; y++)
+				tiles.push(loadImage("img/tile/ship" + x + "_" + y + ".png"));
 	};
 	
 	var initSounds = function()
@@ -103,6 +116,8 @@ var sketchProc = function(processingInstance)
 	MenuGameState.prototype.display = function()
 	{
 		background(255,0,0);
+		for(var i = 0; i < tiles.length; i++)
+			image(tiles[i],64*i,200);
 	};
 	MenuGameState.prototype.update = function()
 	{};
