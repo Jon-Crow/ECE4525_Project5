@@ -62,6 +62,7 @@ var sketchProc = function(processingInstance)
 	
 	var imgs         = [];
 	var imgShipSmall = 0;
+	var imgCannon    = 1;
 	
 	var cannonSounds = [];
 	
@@ -76,7 +77,9 @@ var sketchProc = function(processingInstance)
 	var initImages = function()
 	{
 		//SOURCE: https://i.pinimg.com/564x/a8/51/81/a85181945c60c35174872c3c3e1465ef--ship-map-rpg-map.jpg
+		//SOURCE: https://opengameart.org/content/bomb-party
 		imgs[imgShipSmall] = loadImage("img/ship1.png");
+		imgs[imgCannon]    = loadImage("img/cannon.png");
 	};
 	
 	var initSounds = function()
@@ -121,21 +124,48 @@ var sketchProc = function(processingInstance)
 	};
 	
 	var PlayGameState = function()
-	{};
+	{
+		this.ship1Pos = new PVector(0, -50, 0);
+		this.ship1Vel = new PVector(0, 0,   0);
+		this.ship2Pos = new PVector(0, 300, 0);
+		this.ship2Vel = new PVector(0, 0,   0);
+	};
 	PlayGameState.prototype.display = function()
 	{
-		//background(255,0,0);
+		background(10,10,100);
+		image(imgs[imgShipSmall], this.ship1Pos.x, this.ship1Pos.y, 400, 150);
+		image(imgs[imgShipSmall], this.ship2Pos.x, this.ship2Pos.y, 400, 150);
 	};
 	PlayGameState.prototype.update = function()
-	{};
+	{
+		this.moveShip(this.ship1Pos, this.ship1Vel, -60, -40);
+		this.moveShip(this.ship2Pos, this.ship2Vel, 290, 310);
+	};
 	PlayGameState.prototype.getNextState = function()
 	{
 		return this;
 	};
 	PlayGameState.prototype.clickEvent = function(x, y)
 	{};
+	PlayGameState.prototype.moveShip = function(pos, vel, minY, maxY)
+	{
+		pos.add(vel);
+		if(pos.x < -10)
+			vel.set(0.2,0,0);
+		else if(pos.x > 10)
+			vel.set(-0.2,0,0);
+		else if(pos.y < minY)
+			vel.set(0,0.2,0);
+		else if(pos.y > maxY)
+			vel.set(0,-0.2,0);
+		if(random() < 0.01)
+		{
+			vel.set(0,0.2,0);
+			vel.rotate(random()*deg360);
+		}
+	};
 	
-	var gameState = new MenuGameState();
+	var gameState = new PlayGameState();
 	
 	var showFPS  = 1;
 	var lastTime = 0;
