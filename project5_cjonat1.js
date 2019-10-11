@@ -122,25 +122,77 @@ var sketchProc = function(processingInstance)
 	
 	var WanderPS = function(pirate)
 	{
+		pirate.getVel().x = 0.5;
 		this.pirate = pirate;
-		pirate.getVel().set(1,0,0);
+		this.flee   = 0;
+	};
+	WanderPS.prototype.display = function()
+	{
+		this.pirate.displayAnim();
 	};
 	WanderPS.prototype.update = function()
 	{
 		if(this.pirate.getX() < 50)
-			this.pirate.getVel().set(1,0,0);
+			this.pirate.getVel().x = 0.5;
 		else if(this.pirate.getX() > 300)
-			this.pirate.getVel().set(-1,0,0);
+			this.pirate.getVel().x = -0.5;
+		if(this.flee > 0)
+			this.flee--;
+		else
+		{
+			var ball = gameState.getHighestBall();
+			if(ball !== null)
+			{
+				var target = ball.getXAtY(this.pirate.getY());
+				if(target !== null)
+				{
+					var futX = this.pirate.getX()+this.pirate.getVel().x*target.getTime();
+					if(abs(target.getX()-futX) < (ballSize+this.pirate.getWidth()))
+					{
+						this.pirate.getVel().x *= -1;
+						this.flee = 120;
+					}
+				}
+			}
+		}
 	};
 	WanderPS.prototype.getNextState = function()
 	{
 		return this;
 	};
 	
+	var StunPS = function(pirate)
+	{
+		pirate.getVel().x = 0;
+		this.pirate = pirate;
+		this.blink  = 0;
+		this.time   = 0;
+	};
+	StunPS.prototype.display = function()
+	{
+		if(this.blink > 15)
+			this.pirate.displayAnim();
+	};
+	StunPS.prototype.update = function()
+	{
+		this.blink++;
+		if(this.blink > 30)
+		{
+			this.blink = 0;
+			this.time++;
+		}
+	};
+	StunPS.prototype.getNextState = function()
+	{
+		if(this.time > 5)
+			return new WanderPS(this.pirate);
+		return this;
+	};
+	
 	var Pirate = function(x, y, w, h)
 	{
 		this.pos       = new PVector(x, y, 0);
-		this.vel       = new PVector(0, 0, 0);
+		this.vel       = new PVector(0, 0.01, 0);
 		this.w         = w;
 		this.h         = h;
 		this.state     = new WanderPS(this);
@@ -150,13 +202,19 @@ var sketchProc = function(processingInstance)
 		this.animLeft  = anims[animPirateLeft].clone();
 		this.anim      = this.animUp;
 	};
-	Pirate.prototype.getPos = function() { return this.pos;   };
-	Pirate.prototype.getVel = function() { return this.vel;   };
-	Pirate.prototype.getX   = function() { return this.pos.x; };
-	Pirate.prototype.getY   = function() { return this.pos.y; };
-	Pirate.prototype.display = function()
+	Pirate.prototype.getPos    = function() { return this.pos;   };
+	Pirate.prototype.getVel    = function() { return this.vel;   };
+	Pirate.prototype.getX      = function() { return this.pos.x; };
+	Pirate.prototype.getY      = function() { return this.pos.y; };
+	Pirate.prototype.getWidth  = function() { return this.w;     };
+	Pirate.prototype.getHeight = function() { return this.h;     };
+	Pirate.prototype.displayAnim = function()
 	{
 		this.anim.display(this.pos.x, this.pos.y, this.w, this.h);
+	};
+	Pirate.prototype.display = function()
+	{
+		this.state.display();
 	};
 	Pirate.prototype.update = function()
 	{
@@ -172,9 +230,16 @@ var sketchProc = function(processingInstance)
 			this.anim = this.animUp;
 		this.anim.update();
 		this.state = this.state.getNextState();
+		
+		var ball = gameState.checkBallCollisions(this);
+		if(ball !== null)
+		{
+			this.state = new StunPS(this);
+			ball.getVel().x *= -1;
+		}
 	};
 	
-	var reloadTime = 60;
+	var reloadTime = 180;
 	var Cannon = function(x, y)
 	{
 		this.x      = x;
@@ -184,6 +249,8 @@ var sketchProc = function(processingInstance)
 		this.theta  = 0;
 		this.reload = 0;
 	};
+	Cannon.prototype.getX = function() { return this.x; };
+	Cannon.prototype.getY = function() { return this.y; };
 	Cannon.prototype.display = function()
 	{
 		pushMatrix();
@@ -201,12 +268,14 @@ var sketchProc = function(processingInstance)
 	{
 		if(this.reload < reloadTime)
 			this.reload++;
-		if(keyArray[UP])
-			this.fire();
-		if(keyArray[RIGHT])
-			this.theta += degToRad;
-		if(keyArray[LEFT])
-			this.theta -= degToRad;
+	};
+	Cannon.prototype.rotate = function(angle)
+	{
+		this.theta += angle;
+		if(this.theta > deg90)
+			this.theta = deg90;
+		else if(this.theta < -deg90)
+			this.theta = -deg90;
 	};
 	Cannon.prototype.fire = function()
 	{
@@ -217,11 +286,22 @@ var sketchProc = function(processingInstance)
 		var x = this.x+vel.x;
 		var y = this.y+vel.y;
 		vel.normalize();
-		vel.mult(3);
+		vel.mult(5);
 		gameState.addBall(new Ball(x,y,vel.x,vel.y));
 		this.reload = 0;
 	};
 	
+	var Target = function(x, y, time)
+	{
+		this.x    = x;
+		this.y    = y;
+		this.time = time;
+	};
+	Target.prototype.getX    = function() { return this.x;    };
+	Target.prototype.getY    = function() { return this.y;    };
+	Target.prototype.getTime = function() { return this.time; };
+	
+	var ballSize = 12;
 	var Ball = function(x, y, xVel, yVel)
 	{
 		this.pos = new PVector(x,    y,    0);
@@ -233,7 +313,7 @@ var sketchProc = function(processingInstance)
 	Ball.prototype.display = function()
 	{
 		fill(0,0,0);
-		ellipse(this.pos.x,this.pos.y,12,12);
+		ellipse(this.pos.x,this.pos.y,ballSize,ballSize);
 	};
 	Ball.prototype.update = function()
 	{
@@ -244,8 +324,51 @@ var sketchProc = function(processingInstance)
 		var yDiff = y-this.pos.y;
 		if((yDiff < 0 && this.vel.y > 0) || (yDiff > 0 && this.vel.y < 0))
 			return null;
-		var xDiff = yDiff*this.vel.x;
-		return this.pos.x + xDiff;
+		var time = yDiff/this.vel.y;
+		var xDiff = time*this.vel.x;
+		return new Target(this.pos.x+xDiff,y,time);
+	};
+	
+	var Player = function(x, y, w, h)
+	{
+		this.pos = new PVector(x, y, 0);
+		this.vel = new PVector(0, 0, 0);
+		this.w   = w;
+		this.h   = h;
+		this.spd = 2;
+	};
+	Player.prototype.getX = function() { return this.pos.x; };
+	Player.prototype.getY = function() { return this.pos.y; };
+	Player.prototype.display = function()
+	{
+		fill(0,0,255);
+		ellipse(this.pos.x,this.pos.y,this.w,this.h);
+	};
+	Player.prototype.update = function()
+	{
+		this.vel.set(0,0,0);
+		if(keyArray[UP])
+			this.vel.y -= 1;
+		if(keyArray[RIGHT])
+			this.vel.x += 1;
+		if(keyArray[DOWN])
+			this.vel.y += 1;
+		if(keyArray[LEFT])
+			this.vel.x -= 1;
+		this.vel.normalize();
+		this.vel.mult(this.spd);
+		this.pos.add(this.vel);
+		
+		var can = gameState.getPlayerCannon();
+		if(can !== null)
+		{
+			if(keyArray[68])
+				can.rotate(degToRad);
+			if(keyArray[65])
+				can.rotate(-degToRad);
+			if(keyArray[32])
+				can.fire();
+		}
 	};
 	
 	var MenuGameState = function()
@@ -277,12 +400,14 @@ var sketchProc = function(processingInstance)
 		                new Cannon(200,310),
 						new Cannon(300,310)];
 		this.balls   = [];
+		this.plyr    = new Player(200,350,32,32);
+		this.shipY   = 0;
 	};
 	PlayGameState.prototype.display = function()
 	{
 		noStroke();
 		background(10,10,100);
-		image(imgs[imgShipSmall], 0, 0,   400, 150);
+		image(imgs[imgShipSmall], 0, this.shipY, 400, 150);
 		image(imgs[imgShipSmall], 0, 300, 400, 150);
 		for(var i = 0; i < this.pirates.length; i++)
 			this.pirates[i].display();
@@ -290,9 +415,11 @@ var sketchProc = function(processingInstance)
 			this.cannons[i].display();
 		for(var i = 0; i < this.balls.length; i++)
 			this.balls[i].display();
+		this.plyr.display();
 	};
 	PlayGameState.prototype.update = function()
 	{
+		this.shipY += 0.01;
 		for(var i = 0; i < this.pirates.length; i++)
 			this.pirates[i].update();
 		for(var i = 0; i < this.cannons.length; i++)
@@ -306,6 +433,7 @@ var sketchProc = function(processingInstance)
 			else
 				ball.update();
 		}
+		this.plyr.update();
 	};
 	PlayGameState.prototype.getNextState = function()
 	{
@@ -316,6 +444,43 @@ var sketchProc = function(processingInstance)
 	PlayGameState.prototype.addBall = function(ball)
 	{
 		this.balls.push(ball);
+	};
+	PlayGameState.prototype.getHighestBall = function()
+	{
+		var ball = null;
+		var maxY = -1;
+		for(var i = 0; i < this.balls.length; i++)
+		{
+			if(this.balls[i].getY() > maxY)
+			{
+				ball = this.balls[i];
+				maxY = ball.getY();
+			}
+		}
+		return ball;
+	};
+	PlayGameState.prototype.getPlayerCannon = function()
+	{
+		var can;
+		for(var i = 0; i < this.cannons.length; i++)
+		{
+			can = this.cannons[i];
+			if(dist(this.plyr.getX(),this.plyr.getY(),can.getX(),can.getY()) < 32)
+				return can;
+		}
+		return null;
+	};
+	PlayGameState.prototype.checkBallCollisions = function(pirate)
+	{
+		var ball;
+		var d = ballSize/2+pirate.getWidth();
+		for(var i = 0; i < this.balls.length; i++)
+		{
+			ball = this.balls[i];
+			if(dist(ball.getX(),ball.getY(),pirate.getX(),pirate.getY()) < d)
+				return ball;
+		}
+		return null;
 	};
 	
 	var gameState = new PlayGameState();
