@@ -184,7 +184,7 @@ var sketchProc = function(processingInstance)
 	};
 	StunPS.prototype.getNextState = function()
 	{
-		if(this.time > 5)
+		if(this.time > 3)
 			return new WanderPS(this.pirate);
 		return this;
 	};
@@ -192,22 +192,25 @@ var sketchProc = function(processingInstance)
 	var Pirate = function(x, y, w, h)
 	{
 		this.pos       = new PVector(x, y, 0);
-		this.vel       = new PVector(0, 0.01, 0);
+		this.vel       = new PVector(0, 0.03, 0);
 		this.w         = w;
 		this.h         = h;
+		this.life      = 3;
 		this.state     = new WanderPS(this);
 		this.animUp    = anims[animPirateUp].clone();
 		this.animRight = anims[animPirateRight].clone();
 		this.animDown  = anims[animPirateDown].clone();
 		this.animLeft  = anims[animPirateLeft].clone();
 		this.anim      = this.animUp;
+		this.lastBall  = null;
 	};
-	Pirate.prototype.getPos    = function() { return this.pos;   };
-	Pirate.prototype.getVel    = function() { return this.vel;   };
-	Pirate.prototype.getX      = function() { return this.pos.x; };
-	Pirate.prototype.getY      = function() { return this.pos.y; };
-	Pirate.prototype.getWidth  = function() { return this.w;     };
-	Pirate.prototype.getHeight = function() { return this.h;     };
+	Pirate.prototype.getPos    = function() { return this.pos;       };
+	Pirate.prototype.getVel    = function() { return this.vel;       };
+	Pirate.prototype.getX      = function() { return this.pos.x;     };
+	Pirate.prototype.getY      = function() { return this.pos.y;     };
+	Pirate.prototype.getWidth  = function() { return this.w;         };
+	Pirate.prototype.getHeight = function() { return this.h;         };
+	Pirate.prototype.isDead    = function() { return this.life <= 0; };
 	Pirate.prototype.displayAnim = function()
 	{
 		this.anim.display(this.pos.x, this.pos.y, this.w, this.h);
@@ -232,10 +235,12 @@ var sketchProc = function(processingInstance)
 		this.state = this.state.getNextState();
 		
 		var ball = gameState.checkBallCollisions(this);
-		if(ball !== null)
+		if(ball !== null && ball !== this.lastBall)
 		{
 			this.state = new StunPS(this);
+			this.life--;
 			ball.getVel().x *= -1;
+			this.lastBall = ball;
 		}
 	};
 	
@@ -247,7 +252,7 @@ var sketchProc = function(processingInstance)
 		this.w      = 32;
 		this.h      = 64;
 		this.theta  = 0;
-		this.reload = 0;
+		this.reload = reloadTime;
 	};
 	Cannon.prototype.getX = function() { return this.x; };
 	Cannon.prototype.getY = function() { return this.y; };
@@ -372,24 +377,25 @@ var sketchProc = function(processingInstance)
 	};
 	
 	var MenuGameState = function()
-	{
-		this.play = false;
-	};
+	{};
 	MenuGameState.prototype.display = function()
 	{
 		background(10,10,100);
-		image(imgs[imgShipSmall], 50, 50);
+		fill(255,255,255);
+		textSize(75);
+		textAlign(CENTER);
+		text("GAME", 200, 200);
+		textSize(20);
+		text("Space to play", 200, 300);
 	};
 	MenuGameState.prototype.update = function()
 	{};
 	MenuGameState.prototype.getNextState = function()
 	{
-		return this.play ? new PlayGameState() : this;
+		return keyArray[32] ? new PlayGameState() : this;
 	};
 	MenuGameState.prototype.clickEvent = function(x, y)
-	{
-		this.play = true;
-	};
+	{};
 	
 	var PlayGameState = function()
 	{
@@ -419,9 +425,31 @@ var sketchProc = function(processingInstance)
 	};
 	PlayGameState.prototype.update = function()
 	{
-		this.shipY += 0.01;
-		for(var i = 0; i < this.pirates.length; i++)
+		if(this.pirates.length === 0)
+		{
+			gameState = new MenuGameState();
+			return;
+		}
+		if(this.shipY < 50)
+			this.shipY += 0.03;
+		else
+		{
+			for(var i = 0; i < this.pirates.length; i++)
+			{
+				this.pirates[i].getVel().y = 0;
+				if(this.pirates[i].getX() > 300)
+				{
+					gameState = new MenuGameState();
+					return;
+				}
+			}
+		}
+		for(var i = this.pirates.length-1; i >= 0; i--)
+		{
 			this.pirates[i].update();
+			if(this.pirates[i].isDead())
+				this.pirates.splice(i, 1);
+		}
 		for(var i = 0; i < this.cannons.length; i++)
 			this.cannons[i].update();
 		var ball;
@@ -483,7 +511,7 @@ var sketchProc = function(processingInstance)
 		return null;
 	};
 	
-	var gameState = new PlayGameState();
+	var gameState = new MenuGameState();
 	
 	var showFPS  = 1;
 	var lastTime = 0;
